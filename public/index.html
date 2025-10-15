@@ -61,7 +61,7 @@
       document.getElementById('chat').appendChild(div);
       document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
 
-      speak(`${data.nickname} กล่าวว่า ${data.comment}`);
+      speak(`${data.comment}`);
     });
 
     socket.on('error', err => {
