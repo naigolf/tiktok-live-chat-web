@@ -74,22 +74,44 @@
       document.getElementById('status').textContent = '❌ ' + err.msg;
     });
 
-    // ฟังก์ชันอ่านออกเสียง
-    function speak(text) {
 
-       // หยุดเสียงที่ยังพูดอยู่ก่อน
-      if (speechSynthesis.speaking) {
-        speechSynthesis.cancel();
-      }
-      
-      const utter = new SpeechSynthesisUtterance(text);
-      const selectedName = voiceSelect.value;
-      utter.voice = voices.find(v => v.name === selectedName);
-      utter.lang = utter.voice?.lang || 'th-TH';
-      utter.rate = 0.8;
-      utter.pitch = 1;
-      speechSynthesis.speak(utter);
+
+    
+    // ฟังก์ชันอ่านออกเสียง
+let speaking = false;
+const speakQueue = [];
+
+function speak(text) {
+  // ถ้ากำลังพูดอยู่ → เก็บข้อความไว้ในคิว
+  if (speaking) {
+    speakQueue.push(text);
+    return;
+  }
+
+  speaking = true;
+  const utter = new SpeechSynthesisUtterance(text);
+  const selectedName = voiceSelect.value;
+  utter.voice = voices.find(v => v.name === selectedName);
+  utter.lang = utter.voice?.lang || 'th-TH';
+  utter.rate = 0.6;
+  utter.pitch = 1;
+
+  utter.onend = () => {
+    speaking = false;
+    // ถ้ามีข้อความค้างอยู่ในคิว → พูดต่อ
+    if (speakQueue.length > 0) {
+      const next = speakQueue.shift();
+      speak(next);
     }
+  };
+
+  speechSynthesis.speak(utter);
+}
+
+
+
+    
+
   </script>
 </body>
 </html>
