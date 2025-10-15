@@ -26,130 +26,149 @@
     <div id="status">ยังไม่ได้เชื่อมต่อ</div>
     <div id="chat"></div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const voiceSelect = document.getElementById('voiceSelect');
-        let voices = [];
 
-        // ----------------------------------------------------
-        // ส่วนจัดการคิวเสียงพูด (แก้ไขเพื่อแก้ปัญหาพูดซ้ำ)
-        // ----------------------------------------------------
-        let speakQueue = [];
-        let isSpeaking = false;
 
-        function processQueue() {
-            // ถ้าคิวว่างเปล่า หรือกำลังพูดอยู่ → หยุด
-            if (speakQueue.length === 0 || isSpeaking) {
-                return;
-            }
 
-            // ดึงข้อความแรกออกจากคิว
-            const nextText = speakQueue.shift();
-            isSpeaking = true;
 
-            const utter = new SpeechSynthesisUtterance(nextText);
-            const selectedName = voiceSelect.value;
-            const selectedVoice = voices.find(v => v.name === selectedName);
 
-            if (selectedVoice) {
-                utter.voice = selectedVoice;
-                utter.lang = selectedVoice.lang;
-            } else {
-                // สำรองถ้าหาเสียงที่เลือกไม่เจอ
-                utter.lang = 'th-TH';
-            }
 
-            // ปรับความเร็วในการพูด (0.8 เป็นค่าที่แนะนำ)
-            utter.rate = 0.8; 
-            utter.pitch = 1;
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    const voiceSelect = document.getElementById('voiceSelect');
+    let voices = [];
 
-            utter.onend = () => {
-                isSpeaking = false;
-                // เมื่อพูดจบ ให้เรียกตัวเองต่อเพื่อพูดข้อความถัดไปในคิว
-                processQueue();
-            };
+    // ----------------------------------------------------
+    // ส่วนจัดการคิวเสียงพูด (แก้ไขใหม่ล่าสุดเพื่อแก้ปัญหาวนซ้ำ)
+    // ----------------------------------------------------
+    let speakQueue = [];
+    let isSpeaking = false;
 
-            utter.onerror = (event) => {
-                console.error('SpeechSynthesis Utterance Error:', event);
-                isSpeaking = false;
-                // ถ้ามีข้อผิดพลาด ให้ไปพูดข้อความถัดไป
-                processQueue();
-            };
-
-            // สั่งให้พูด
-            speechSynthesis.speak(utter);
+    function processQueue() {
+        // 1. ตรวจสอบสถานะการทำงาน
+        if (speakQueue.length === 0) {
+            isSpeaking = false;
+            return;
         }
-
-        // ฟังก์ชันที่ใช้ในการเพิ่มข้อความเข้าคิว (ถูกเรียกจาก socket.on('chat'))
-        function speak(text) {
-            if (text.trim() === '') {
-                return; 
-            }
-            // เพิ่มข้อความใหม่เข้าคิว
-            speakQueue.push(text);
-            // เรียกให้เริ่มทำงาน
-            processQueue();
-        }
-
-        // ----------------------------------------------------
-        // ส่วนโหลดเสียง (ปรับปรุงให้เรียกใช้ทันที)
-        // ----------------------------------------------------
-        function loadVoices() {
-            voices = speechSynthesis.getVoices()
-                // กรองเฉพาะเสียงภาษาไทย
-                .filter(v => v.lang.toLowerCase().includes('th')); 
-                
-            voiceSelect.innerHTML = voices
-                .map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`)
-                .join('');
-
-            // ตั้งเสียงเริ่มต้นอัตโนมัติ (พยายามหาเสียง Default หรือเสียงแรก)
-            const defaultVoice = voices.find(v => v.default) || voices[0];
-            if (defaultVoice) voiceSelect.value = defaultVoice.name;
-        }
-
-        // โหลดเสียงทันที และโหลดซ้ำเมื่อมีเสียงเปลี่ยนแปลง
-        loadVoices(); 
-        speechSynthesis.onvoiceschanged = loadVoices;
-
-
-        // ----------------------------------------------------
-        // ส่วนการเชื่อมต่อและการแสดงแชท
-        // ----------------------------------------------------
         
-        // เริ่มเชื่อมต่อ TikTok Live
-        document.getElementById('btn').onclick = () => {
-            // ยกเลิกการพูดข้อความเก่าๆ ก่อนเริ่ม
+        // ถ้ากำลังพูดอยู่ และข้อความแรกในคิวไม่ใช่ข้อความที่กำลังพูดอยู่ 
+        // ให้ยกเลิกการพูดเก่า เพื่อพูดข้อความใหม่ทันที
+        if (isSpeaking) {
+            // ยกเลิกการพูดเก่าทั้งหมด
             speechSynthesis.cancel(); 
-            speakQueue = [];
-            isSpeaking = false; 
+            isSpeaking = false; // รีเซ็ตสถานะ
+        }
 
-            const uid = document.getElementById('uniqueId').value.trim();
-            if (!uid) return alert('กรุณากรอกชื่อบัญชี TikTok');
-            document.getElementById('status').textContent = '⏳ กำลังเชื่อมต่อ...';
-            socket.emit('start', { uniqueId: uid });
+        // 2. ดึงข้อความแรกออกจากคิวและตั้งค่าการพูด
+        const nextText = speakQueue.shift();
+        isSpeaking = true;
+
+        const utter = new SpeechSynthesisUtterance(nextText);
+        const selectedName = voiceSelect.value;
+        const selectedVoice = voices.find(v => v.name === selectedName);
+
+        if (selectedVoice) {
+            utter.voice = selectedVoice;
+            utter.lang = selectedVoice.lang;
+        } else {
+            utter.lang = 'th-TH'; // สำรอง
+        }
+
+        // ปรับความเร็วในการพูด
+        utter.rate = 0.8; 
+        utter.pitch = 1;
+
+        // 3. กำหนดเมื่อพูดจบ/เกิดข้อผิดพลาด
+        utter.onend = () => {
+            isSpeaking = false;
+            // เมื่อพูดจบ ให้เรียกตัวเองต่อเพื่อพูดข้อความถัดไปในคิว
+            processQueue();
         };
 
-        socket.on('connected', data => {
-            document.getElementById('status').textContent = '✅ เชื่อมต่อ roomId: ' + data.roomId;
-        });
+        utter.onerror = (event) => {
+            console.error('SpeechSynthesis Utterance Error:', event);
+            isSpeaking = false;
+            // ถ้ามีข้อผิดพลาด ให้ไปพูดข้อความถัดไป
+            processQueue();
+        };
 
-        socket.on('chat', data => {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.textContent = `${data.nickname}: ${data.comment}`;
-            const chatBox = document.getElementById('chat');
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
+        // 4. สั่งให้พูด
+        speechSynthesis.speak(utter);
+    }
 
-            // อ่านออกเสียงภาษาไทย
-            speak(`${data.comment}`);
-        });
+    // ฟังก์ชันที่ใช้ในการเพิ่มข้อความเข้าคิว
+    function speak(text) {
+        if (text.trim() === '') {
+            return; 
+        }
+        // เพิ่มข้อความใหม่เข้าคิว
+        speakQueue.push(text);
+        // เรียกให้เริ่มทำงาน
+        processQueue();
+    }
 
-        socket.on('error', err => {
-            document.getElementById('status').textContent = '❌ ' + err.msg;
-        });
-    </script>
+    // ----------------------------------------------------
+    // ส่วนโหลดเสียงและการเชื่อมต่อ (จากโค้ดเดิม)
+    // ----------------------------------------------------
+    
+    // โหลดรายชื่อเสียงในเครื่อง (กรองเฉพาะภาษาไทยก่อน)
+    function loadVoices() {
+        voices = speechSynthesis.getVoices()
+            .filter(v => v.lang.toLowerCase().includes('th')); // ✅ เฉพาะเสียงไทย
+            
+        voiceSelect.innerHTML = voices
+            .map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`)
+            .join('');
+
+        // ตั้งเสียงเริ่มต้นอัตโนมัติ
+        const defaultVoice = voices.find(v => v.default) || voices[0];
+        if (defaultVoice) voiceSelect.value = defaultVoice.name;
+    }
+
+    // โหลดเสียงทันที และโหลดซ้ำเมื่อมีเสียงเปลี่ยนแปลง
+    loadVoices(); 
+    speechSynthesis.onvoiceschanged = loadVoices;
+
+
+    // เริ่มเชื่อมต่อ TikTok Live
+    document.getElementById('btn').onclick = () => {
+        // เมื่อกดเชื่อมต่อ ให้เคลียร์คิวและยกเลิกเสียงพูดทั้งหมด เพื่อเริ่มใหม่
+        speechSynthesis.cancel(); 
+        speakQueue = [];
+        isSpeaking = false; 
+
+        const uid = document.getElementById('uniqueId').value.trim();
+        if (!uid) return alert('กรุณากรอกชื่อบัญชี TikTok');
+        document.getElementById('status').textContent = '⏳ กำลังเชื่อมต่อ...';
+        socket.emit('start', { uniqueId: uid });
+    };
+
+    socket.on('connected', data => {
+        document.getElementById('status').textContent = '✅ เชื่อมต่อ roomId: ' + data.roomId;
+    });
+
+    socket.on('chat', data => {
+        const div = document.createElement('div');
+        div.className = 'msg';
+        div.textContent = `${data.nickname}: ${data.comment}`;
+        const chatBox = document.getElementById('chat');
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // อ่านออกเสียงภาษาไทย
+        speak(`${data.comment}`);
+    });
+
+    socket.on('error', err => {
+        document.getElementById('status').textContent = '❌ ' + err.msg;
+    });
+
+</script>
+
+
+
+
+
+    
 </body>
 </html>
