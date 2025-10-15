@@ -76,6 +76,12 @@
 
     // ฟังก์ชันอ่านออกเสียง
     function speak(text) {
+
+       // หยุดเสียงที่ยังพูดอยู่ก่อน
+      if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+      }
+      
       const utter = new SpeechSynthesisUtterance(text);
       const selectedName = voiceSelect.value;
       utter.voice = voices.find(v => v.name === selectedName);
