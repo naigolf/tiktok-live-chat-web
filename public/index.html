@@ -29,16 +29,20 @@
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-
     const voiceSelect = document.getElementById('voiceSelect');
     let voices = [];
 
-    // โหลดรายชื่อเสียงในเครื่อง
+    // โหลดรายชื่อเสียงในเครื่อง (กรองเฉพาะภาษาไทยก่อน)
     function loadVoices() {
-      voices = speechSynthesis.getVoices();
+      voices = speechSynthesis.getVoices()
+        .filter(v => v.lang.toLowerCase().includes('th')); // ✅ เฉพาะเสียงไทย
       voiceSelect.innerHTML = voices
         .map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`)
         .join('');
+
+      // ตั้งเสียงเริ่มต้นอัตโนมัติ
+      const defaultVoice = voices.find(v => v.default) || voices[0];
+      if (defaultVoice) voiceSelect.value = defaultVoice.name;
     }
     speechSynthesis.onvoiceschanged = loadVoices;
 
@@ -58,9 +62,11 @@
       const div = document.createElement('div');
       div.className = 'msg';
       div.textContent = `${data.nickname}: ${data.comment}`;
-      document.getElementById('chat').appendChild(div);
-      document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+      const chatBox = document.getElementById('chat');
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
 
+      // อ่านออกเสียงภาษาไทย
       speak(`${data.comment}`);
     });
 
@@ -74,7 +80,8 @@
       const selectedName = voiceSelect.value;
       utter.voice = voices.find(v => v.name === selectedName);
       utter.lang = utter.voice?.lang || 'th-TH';
-      utter.rate = 1; // ความเร็วปกติ
+      utter.rate = 0.8;
+      utter.pitch = 1;
       speechSynthesis.speak(utter);
     }
   </script>
