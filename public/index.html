@@ -2,17 +2,27 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>TikTok Live Chat</title>
+  <title>TikTok Live Chat (with Voice)</title>
   <style>
     body { background: #111; color: #eee; font-family: sans-serif; text-align: center; }
-    #chat { max-width:600px; margin:20px auto; overflow-y: auto; height: 300px; background:#222; padding:10px; border-radius:5px; }
+    #chat { max-width:600px; margin:20px auto; overflow-y: auto; height: 350px; background:#222; padding:10px; border-radius:5px; }
     .msg { text-align: left; margin:5px 0; padding:8px; background:#333; border-radius:4px; }
+    input, select, button { margin: 5px; padding: 8px; border-radius: 5px; border: none; }
+    button { background:#0a84ff; color:white; cursor:pointer; }
   </style>
 </head>
 <body>
-  <h2>TikTok Live Chat Viewer</h2>
-  <input id="uniqueId" placeholder="ชื่อบัญชี TikTok" />
-  <button id="btn">เชื่อมต่อ</button>
+  <h2>🟣 TikTok Live Chat (พูดได้)</h2>
+
+  <div>
+    <input id="uniqueId" placeholder="ชื่อบัญชี TikTok" />
+    <button id="btn">เชื่อมต่อ</button>
+    <label>
+      เสียง:
+      <select id="voiceSelect"></select>
+    </label>
+  </div>
+
   <div id="status">ยังไม่ได้เชื่อมต่อ</div>
   <div id="chat"></div>
 
@@ -20,6 +30,19 @@
   <script>
     const socket = io();
 
+    const voiceSelect = document.getElementById('voiceSelect');
+    let voices = [];
+
+    // โหลดรายชื่อเสียงในเครื่อง
+    function loadVoices() {
+      voices = speechSynthesis.getVoices();
+      voiceSelect.innerHTML = voices
+        .map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`)
+        .join('');
+    }
+    speechSynthesis.onvoiceschanged = loadVoices;
+
+    // เริ่มเชื่อมต่อ TikTok Live
     document.getElementById('btn').onclick = () => {
       const uid = document.getElementById('uniqueId').value.trim();
       if (!uid) return alert('กรุณากรอกชื่อบัญชี TikTok');
@@ -37,11 +60,23 @@
       div.textContent = `${data.nickname}: ${data.comment}`;
       document.getElementById('chat').appendChild(div);
       document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+
+      speak(`${data.nickname} กล่าวว่า ${data.comment}`);
     });
 
     socket.on('error', err => {
       document.getElementById('status').textContent = '❌ ' + err.msg;
     });
+
+    // ฟังก์ชันอ่านออกเสียง
+    function speak(text) {
+      const utter = new SpeechSynthesisUtterance(text);
+      const selectedName = voiceSelect.value;
+      utter.voice = voices.find(v => v.name === selectedName);
+      utter.lang = utter.voice?.lang || 'th-TH';
+      utter.rate = 1; // ความเร็วปกติ
+      speechSynthesis.speak(utter);
+    }
   </script>
 </body>
 </html>
