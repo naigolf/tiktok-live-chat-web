@@ -7,7 +7,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// เสิร์ฟไฟล์ static frontend
 app.use(express.static('public'));
 
 let connection = null;
@@ -20,7 +19,9 @@ io.on('connection', (socket) => {
       connection.disconnect();
       connection = null;
     }
+
     connection = new TikTokLiveConnection(uniqueId);
+
     connection.connect().then(state => {
       console.log('Connected to roomId', state.roomId);
       socket.emit('connected', { roomId: state.roomId });
@@ -35,14 +36,6 @@ io.on('connection', (socket) => {
         comment: data.comment
       });
     });
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Frontend disconnected');
-    if (connection) {
-      connection.disconnect();
-      connection = null;
-    }
   });
 });
 
